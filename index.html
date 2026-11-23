@@ -322,7 +322,8 @@ $("analyze").onclick = async () => {
     if (S.model.startsWith("claude-opus")) { body.fallbacks = "default"; headers["anthropic-beta"] = "server-side-fallback-2026-07-01"; }
     const res = await fetch("https://api.anthropic.com/v1/messages", {method:"POST", headers, body:JSON.stringify(body)});
     const data = await res.json();
-    if (!res.ok) throw new Error(res.status === 401 ? "Clé API invalide. Vérifie-la dans Réglages." :
+    if (!res.ok) throw new Error(res.status === 401 ? "Clé API refusée par Anthropic. Recopie-la en entier dans Réglages (elle commence par sk-ant-api). Détail : " + ((data.error && data.error.message) || "401") :
+      /credit|billing/i.test((data.error && data.error.message) || "") ? "Plus de crédit sur ton compte Anthropic. Ajoute du crédit dans Billing sur console.anthropic.com." :
       res.status === 429 ? "Trop de demandes, réessaie dans une minute." :
       (data.error && data.error.message) || ("Erreur " + res.status));
     if (data.stop_reason === "refusal") throw new Error("L'IA n'a pas pu analyser ce repas. Essaie avec une description.");
@@ -422,7 +423,8 @@ function fillSettings(){
 }
 $("save").onclick = () => {
   S.goals = { kcal: r($("sK").value) || 3000, p: r($("sP").value) || 145, c: r($("sC").value) || 425, f: r($("sF").value) || 80, w: parseFloat(String($("sW").value).replace(",", ".")) || 3 };
-  S.apiKey = $("sKey").value.trim(); S.model = $("sModel").value; save(); renderToday();
+  S.apiKey = $("sKey").value.replace(/[^\x21-\x7E]/g, ""); S.model = $("sModel").value; save(); renderToday();
+  if (S.apiKey && !S.apiKey.startsWith("sk-ant-")) { $("save").textContent = "Clé enregistrée, mais elle devrait commencer par sk-ant-"; setTimeout(() => $("save").textContent = "Enregistrer", 4000); return; }
   $("save").textContent = "Enregistré ✓"; setTimeout(() => $("save").textContent = "Enregistrer", 1500);
 };
 $("exp").onclick = () => {
