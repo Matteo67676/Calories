@@ -175,6 +175,49 @@ svg text{fill:var(--muted);font-size:11px}
 </section>
 
 <!-- ============ RÉGLAGES ============ -->
+<section id="v-foods" class="hidden">
+  <h1>Mes aliments</h1>
+  <div class="card">
+    <h2>Ajouter un produit</h2>
+    <div class="muted">Prends en photo l'étiquette nutritionnelle (ou le code-barres) d'un produit que tu manges souvent. L'IA utilisera ensuite ses valeurs exactes.</div>
+    <label class="primary" style="display:block;text-align:center;margin-top:12px;padding:13px;border-radius:12px;font-weight:600;color:#fff;background:var(--accent);cursor:pointer" id="fPhotoBtn">📷 Photo de l'étiquette
+      <input id="fPhoto" type="file" accept="image/*" class="hidden"></label>
+    <div class="row" style="margin-top:10px">
+      <input id="fCode" inputmode="numeric" placeholder="Ou tape le code-barres">
+      <button class="ghost" id="fCodeBtn" style="width:auto">Chercher</button>
+    </div>
+    <div class="err" id="fErr"></div>
+  </div>
+  <div class="card hidden" id="fForm">
+    <h2>Vérifie les valeurs</h2>
+    <label>Nom</label><input id="fName">
+    <div class="grid2">
+      <div><label>Marque</label><input id="fBrand"></div>
+      <div><label>Unité</label><select id="fUnit"><option value="g">g</option><option value="ml">ml</option></select></div>
+    </div>
+    <label>Portion habituelle (<span class="fU">g</span>)</label><input id="fPortion" type="number" inputmode="decimal">
+    <div class="muted" style="margin-top:12px">Valeurs pour 100 <span class="fU">g</span> :</div>
+    <div class="grid2 edit">
+      <div><label>kcal</label><input id="fk_kcal" inputmode="decimal"></div>
+      <div><label>Protéines g</label><input id="fk_p" inputmode="decimal"></div>
+      <div><label>Glucides g</label><input id="fk_c" inputmode="decimal"></div>
+      <div><label>dont sucres g</label><input id="fk_sug" inputmode="decimal"></div>
+      <div><label>Lipides g</label><input id="fk_f" inputmode="decimal"></div>
+      <div><label>dont saturés g</label><input id="fk_sat" inputmode="decimal"></div>
+      <div><label>Fibres g</label><input id="fk_fib" inputmode="decimal"></div>
+      <div><label>Sel g</label><input id="fk_salt" inputmode="decimal"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="ghost" id="fCancel" style="flex:1">Annuler</button>
+      <button class="primary" id="fSave" style="flex:2">Enregistrer le produit</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Mes produits</h2>
+    <div id="fList"></div>
+  </div>
+</section>
+
 <section id="v-settings" class="hidden">
   <h1>Réglages</h1>
   <div class="card">
@@ -199,6 +242,14 @@ svg text{fill:var(--muted);font-size:11px}
     </select>
     <div class="muted" style="margin-top:8px">La clé reste uniquement sur ton téléphone.</div>
   </div>
+  <div class="card">
+    <h2>Dépenses IA</h2>
+    <div id="spendBox"></div>
+    <label>Crédit restant affiché sur la console ($)</label>
+    <div class="row"><input id="sCredit" type="number" step="0.01" inputmode="decimal">
+      <button class="ghost" id="sCreditBtn" style="width:auto">Recaler</button></div>
+    <div class="muted" style="margin-top:6px">Si tu recharges ton crédit, tape le nouveau solde de la console et touche Recaler.</div>
+  </div>
   <button class="primary" id="save">Enregistrer</button>
   <div class="card" style="margin-top:14px">
     <h2>Sauvegarde</h2>
@@ -209,7 +260,7 @@ svg text{fill:var(--muted);font-size:11px}
         <input id="imp" type="file" accept="application/json" class="hidden"></label>
     </div>
   </div>
-  <div class="muted" style="text-align:center;margin-top:14px">Version 7</div>
+  <div class="muted" style="text-align:center;margin-top:14px">Version 9</div>
 </section>
 
 </main>
@@ -217,14 +268,15 @@ svg text{fill:var(--muted);font-size:11px}
 <nav class="tabs">
   <button data-v="today" class="on"><span>🍽️</span>Aujourd'hui</button>
   <button data-v="stats"><span>📈</span>Suivi</button>
+  <button data-v="foods"><span>🥫</span>Mes aliments</button>
   <button data-v="settings"><span>⚙️</span>Réglages</button>
 </nav>
 
 <script>
 // ---------- Stockage ----------
-const DEF = { goals:{kcal:3000,p:145,c:425,f:80,w:3}, apiKey:"", model:"claude-opus-5-5", meals:[], weights:[], water:{} };
+const DEF = { goals:{kcal:3000,p:145,c:425,f:80,w:3}, apiKey:"", model:"claude-opus-5-5", meals:[], weights:[], water:{}, foods:[], spend:[], credit:5, creditTs:0 };
 function load(){ try{ return Object.assign({}, DEF, JSON.parse(localStorage.getItem("ct") || "{}")); }catch(e){ return {...DEF}; } }
-let S = load(); S.water = S.water || {}; if (!S.goals.w) S.goals.w = 3;
+let S = load(); S.water = S.water || {}; S.foods = S.foods || []; S.spend = S.spend || []; if (S.credit === undefined) S.credit = 5; S.creditTs = S.creditTs || 0; if (!S.goals.w) S.goals.w = 3;
 function save(){ try{ localStorage.setItem("ct", JSON.stringify(S)); }catch(e){ alertMsg("Impossible d'enregistrer sur ce téléphone."); } }
 const $ = id => document.getElementById(id);
 const dayKey = d => { const x = new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); };
@@ -235,9 +287,10 @@ function alertMsg(m){ $("err").textContent = m; }
 // ---------- Navigation ----------
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
   document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
-  ["today","stats","settings"].forEach(v => $("v-"+v).classList.toggle("hidden", v !== b.dataset.v));
+  ["today","stats","foods","settings"].forEach(v => $("v-"+v).classList.toggle("hidden", v !== b.dataset.v));
   if (b.dataset.v === "stats") renderStats();
   if (b.dataset.v === "settings") fillSettings();
+  if (b.dataset.v === "foods") renderFoods();
   window.scrollTo(0,0);
 });
 
@@ -344,6 +397,58 @@ const SYSTEM = "Tu es un nutritionniste. À partir d'une photo et/ou d'une descr
   "(kcal, protéines, glucides dont sucres, lipides dont acides gras saturés, fibres et sel, en grammes). Si la photo montre un emballage avec une étiquette nutritionnelle, utilise-la. " +
   "Réponds en français. meal_name est un nom court du repas (ex : \"Poulet riz brocolis\").";
 
+async function askClaude(system, content, schema){
+  const body = { model:S.model, max_tokens:4000, system,
+    output_config:{ effort:"low", format:{type:"json_schema", schema} },
+    messages:[{role:"user", content}] };
+  // Clés personnelles (sk-ant-usr-...) : en-tête Authorization: Bearer. Anciennes clés (sk-ant-api...) : x-api-key.
+  const auth = S.apiKey.startsWith("sk-ant-api") ? {"x-api-key":S.apiKey} : {"authorization":"Bearer " + S.apiKey};
+  const headers = { "content-type":"application/json", ...auth,
+    "anthropic-version":"2026-10-21", "anthropic-dangerous-direct-browser-access":"true" };
+  if (S.model.startsWith("claude-opus")) { body.fallbacks = "default"; headers["anthropic-beta"] = "server-side-fallback-2026-07-01"; }
+  let res;
+  try { res = await fetch("https://api.anthropic.com/v1/messages", {method:"POST", headers, body:JSON.stringify(body)}); }
+  catch (e) { throw new Error("Pas de connexion internet."); }
+  const data = await res.json();
+  if (!res.ok) throw new Error(res.status === 401 ? "Clé API refusée par Anthropic. Vérifie qu'elle est complète et pas expirée dans Réglages. Détail : " + ((data.error && data.error.message) || "401") :
+    /credit|billing/i.test((data.error && data.error.message) || "") ? "Plus de crédit sur ton compte Anthropic. Ajoute du crédit dans Billing sur console.anthropic.com." :
+    res.status === 429 ? "Trop de demandes, réessaie dans une minute." :
+    (data.error && data.error.message) || ("Erreur " + res.status));
+  if (data.stop_reason === "refusal") throw new Error("L'IA n'a pas pu analyser ça. Essaie avec une description.");
+  recordSpend(data);
+  return JSON.parse((data.content || []).filter(b => b.type === "text").map(b => b.text).join(""));
+}
+// Tarifs en $ par million de tokens (entrée, sortie)
+const PRICES = { "claude-opus-5-5":[4,20], "claude-haiku-5-5":[0.10,0.50], "claude-opus-5":[5,25], "claude-opus-4-8":[5,25] };
+let lastCost = 0;
+function recordSpend(data){
+  const u = data.usage || {}, pr = PRICES[data.model] || PRICES[S.model] || PRICES["claude-opus-5-5"];
+  const inTok = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) * 1.25 + (u.cache_read_input_tokens || 0) * 0.1;
+  lastCost = (inTok * pr[0] + (u.output_tokens || 0) * pr[1]) / 1e6;
+  S.spend.push({ ts: Date.now(), usd: lastCost }); save();
+}
+const usd = v => "$" + v.toLocaleString("fr-FR", {minimumFractionDigits: v < 1 ? 3 : 2, maximumFractionDigits: v < 1 ? 3 : 2});
+function renderSpend(){
+  const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const month = S.spend.filter(x => x.ts >= m0), mSum = month.reduce((a,x) => a + x.usd, 0);
+  const since = S.spend.filter(x => x.ts >= S.creditTs).reduce((a,x) => a + x.usd, 0);
+  const left = Math.max(0, S.credit - since), avg = month.length ? mSum / month.length : 0;
+  $("spendBox").innerHTML = `<div class="grid2">
+      <div><div class="muted">Ce mois-ci</div><div style="font-size:22px;font-weight:700">${usd(mSum)}</div><div class="muted">${month.length} analyse(s)</div></div>
+      <div><div class="muted">Crédit restant estimé</div><div style="font-size:22px;font-weight:700">${usd(left)}</div><div class="muted">sur ${usd(S.credit)}</div></div></div>
+    <div class="bar"><i style="background:var(--accent);width:${S.credit ? Math.min(100, left / S.credit * 100) : 0}%"></i></div>
+    <div class="muted">${avg ? `En moyenne ${(avg*100).toLocaleString("fr-FR",{maximumFractionDigits:2})} centime(s) de dollar par analyse. ` : ""}Estimation calculée par l'app ; le chiffre exact est sur console.anthropic.com.</div>`;
+  $("sCredit").value = +left.toFixed(2);
+}
+function systemWithFoods(){
+  if (!S.foods.length) return SYSTEM;
+  return SYSTEM + "\n\nVoici les produits habituels de l'utilisateur, avec leurs valeurs exactes lues sur l'emballage. " +
+    "Quand le repas contient l'un de ces produits (même nommé de façon approximative), utilise ces valeurs en priorité au lieu d'une estimation, " +
+    "en les proportionnant à la quantité consommée (si aucune quantité n'est donnée, prends la portion habituelle indiquée).\n" +
+    S.foods.map(f => `- ${f.name}${f.brand ? " (" + f.brand + ")" : ""} : pour 100 ${f.unit} : ${f.kcal} kcal, protéines ${f.p} g, glucides ${f.c} g dont sucres ${f.sug} g, ` +
+      `lipides ${f.f} g dont saturés ${f.sat} g, fibres ${f.fib} g, sel ${f.salt} g. Portion habituelle : ${f.portion} ${f.unit}.`).join("\n");
+}
+
 let pending = null;
 $("analyze").onclick = async () => {
   alertMsg("");
@@ -355,37 +460,21 @@ $("analyze").onclick = async () => {
     const content = [];
     if (photoB64) content.push({type:"image", source:{type:"base64", media_type:"image/jpeg", data:photoB64}});
     content.push({type:"text", text: text || "Estime les valeurs nutritionnelles de ce repas."});
-    const body = { model:S.model, max_tokens:4000, system:SYSTEM,
-      output_config:{ effort:"low", format:{type:"json_schema", schema:SCHEMA} },
-      messages:[{role:"user", content}] };
-    // Clés personnelles (sk-ant-usr-...) : en-tête Authorization: Bearer. Anciennes clés (sk-ant-api...) : x-api-key.
-    const auth = S.apiKey.startsWith("sk-ant-api") ? {"x-api-key":S.apiKey} : {"authorization":"Bearer " + S.apiKey};
-    const headers = { "content-type":"application/json", ...auth,
-      "anthropic-version":"2026-10-21", "anthropic-dangerous-direct-browser-access":"true" };
-    if (S.model.startsWith("claude-opus")) { body.fallbacks = "default"; headers["anthropic-beta"] = "server-side-fallback-2026-07-01"; }
-    const res = await fetch("https://api.anthropic.com/v1/messages", {method:"POST", headers, body:JSON.stringify(body)});
-    const data = await res.json();
-    if (!res.ok) throw new Error(res.status === 401 ? "Clé API refusée par Anthropic. Vérifie qu'elle est complète et pas expirée dans Réglages. Détail : " + ((data.error && data.error.message) || "401") :
-      /credit|billing/i.test((data.error && data.error.message) || "") ? "Plus de crédit sur ton compte Anthropic. Ajoute du crédit dans Billing sur console.anthropic.com." :
-      res.status === 429 ? "Trop de demandes, réessaie dans une minute." :
-      (data.error && data.error.message) || ("Erreur " + res.status));
-    if (data.stop_reason === "refusal") throw new Error("L'IA n'a pas pu analyser ce repas. Essaie avec une description.");
-    const txt = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-    const out = JSON.parse(txt);
+    const out = await askClaude(systemWithFoods(), content, SCHEMA);
     const sum = k => out.items.reduce((a,i) => a + (Number(i[k]) || 0), 0);
     pending = { name: out.meal_name || "Repas", items: out.items,
       kcal: sum("kcal"), p: sum("protein_g"), c: sum("carbs_g"), f: sum("fat_g"),
       sug: sum("sugars_g"), sat: sum("saturated_fat_g"), fib: sum("fiber_g"), salt: sum("salt_g") };
     showResult();
   } catch (e) {
-    alertMsg(e.message === "Failed to fetch" ? "Pas de connexion internet." : e.message);
+    alertMsg(e.message);
   } finally { btn.disabled = false; btn.textContent = "Analyser"; }
 };
 function showResult(){
   $("result").classList.remove("hidden");
   $("resName").textContent = pending.name;
   $("resItems").innerHTML = pending.items.map(i => `${esc(i.name)} (${esc(i.quantity)}) : ${r(i.kcal)} kcal`).join("<br>");
-  $("resLabel").innerHTML = label(pending);
+  $("resLabel").innerHTML = label(pending) + `<div class="muted" style="margin-top:6px">Coût de cette analyse : ${usd(lastCost)}</div>`;
   $("eK").value = r(pending.kcal); $("eP").value = r(pending.p); $("eC").value = r(pending.c); $("eF").value = r(pending.f);
   $("result").scrollIntoView({behavior:"smooth", block:"center"});
 }
@@ -401,6 +490,103 @@ $("confirm").onclick = () => {
     sug: pending.sug, sat: pending.sat, fib: pending.fib, salt: pending.salt });
   save(); resetInput(); renderToday(); window.scrollTo({top:0, behavior:"smooth"});
 };
+
+// ---------- Mes aliments ----------
+const FK = ["kcal","p","c","sug","f","sat","fib","salt"];
+const LABEL_SCHEMA = { type:"object", additionalProperties:false,
+  required:["found","name","brand","unit","portion","barcode","kcal","protein_g","carbs_g","sugars_g","fat_g","saturated_fat_g","fiber_g","salt_g"],
+  properties:{ found:{type:"boolean"}, name:{type:"string"}, brand:{type:"string"}, unit:{type:"string", enum:["g","ml"]},
+    portion:{type:"number"}, barcode:{type:"string"}, kcal:{type:"number"}, protein_g:{type:"number"}, carbs_g:{type:"number"},
+    sugars_g:{type:"number"}, fat_g:{type:"number"}, saturated_fat_g:{type:"number"}, fiber_g:{type:"number"}, salt_g:{type:"number"} }};
+const LABEL_SYSTEM = "Tu lis des emballages alimentaires. Sur la photo, trouve le tableau des valeurs nutritionnelles et recopie exactement les valeurs POUR 100 g ou 100 ml " +
+  "(pas par portion ; si seules les valeurs par portion existent, convertis-les pour 100). found = true si tu as pu lire le tableau. " +
+  "unit = ml pour les boissons, sinon g. portion = la portion ou le contenant habituel (ex : 500 pour une bouteille de 50 cl). " +
+  "barcode = les chiffres du code-barres s'il est visible, sinon chaîne vide. name = nom court du produit en français, brand = marque. " +
+  "Si une valeur n'est pas indiquée, mets 0. Si le tableau n'est pas lisible, found = false et mets 0 partout.";
+let fEditId = null;
+function showFoodForm(f){
+  fEditId = f.id || null;
+  $("fForm").classList.remove("hidden");
+  $("fName").value = f.name || ""; $("fBrand").value = f.brand || ""; $("fUnit").value = f.unit || "g"; $("fPortion").value = f.portion || 100;
+  FK.forEach(k => $("fk_"+k).value = f[k] !== undefined ? +Number(f[k]).toFixed(2) : "");
+  document.querySelectorAll(".fU").forEach(x => x.textContent = $("fUnit").value);
+  $("fForm").scrollIntoView({behavior:"smooth", block:"start"});
+}
+$("fUnit").onchange = () => document.querySelectorAll(".fU").forEach(x => x.textContent = $("fUnit").value);
+$("fCancel").onclick = () => { $("fForm").classList.add("hidden"); fEditId = null; };
+$("fSave").onclick = () => {
+  const num = id => parseFloat(String($(id).value).replace(",", ".")) || 0;
+  const f = { id: fEditId || String(Date.now()), name: $("fName").value.trim() || "Produit", brand: $("fBrand").value.trim(),
+    unit: $("fUnit").value, portion: num("fPortion") || 100 };
+  FK.forEach(k => f[k] = num("fk_"+k));
+  S.foods = S.foods.filter(x => x.id !== f.id); S.foods.push(f); save();
+  $("fForm").classList.add("hidden"); fEditId = null; renderFoods();
+};
+$("fPhoto").onchange = async e => {
+  const file = e.target.files[0]; if (!file) return;
+  $("fErr").textContent = "";
+  if (!S.apiKey) { $("fErr").textContent = "Ajoute ta clé API dans Réglages."; return; }
+  const btn = $("fPhotoBtn"), old = btn.firstChild.textContent; btn.firstChild.textContent = "Lecture de l'étiquette…";
+  try {
+    const b64 = await shrink(file, 1568);
+    const out = await askClaude(LABEL_SYSTEM, [{type:"image", source:{type:"base64", media_type:"image/jpeg", data:b64}},
+      {type:"text", text:"Lis les valeurs nutritionnelles de ce produit."}], LABEL_SCHEMA);
+    if (!out.found && out.barcode) { await lookupBarcode(out.barcode); return; }
+    if (!out.found) throw new Error("Je n'ai pas réussi à lire le tableau. Reprends la photo plus près, bien à plat et sans reflet.");
+    showFoodForm({ name: out.name, brand: out.brand, unit: out.unit, portion: out.portion,
+      kcal: out.kcal, p: out.protein_g, c: out.carbs_g, sug: out.sugars_g, f: out.fat_g, sat: out.saturated_fat_g, fib: out.fiber_g, salt: out.salt_g });
+  } catch (er) { $("fErr").textContent = er.message; }
+  finally { btn.firstChild.textContent = old; $("fPhoto").value = ""; }
+};
+async function lookupBarcode(code){
+  code = String(code).replace(/\D/g, "");
+  if (code.length < 8) throw new Error("Code-barres incomplet.");
+  let d;
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_fr,brands,nutriments,quantity,serving_quantity`);
+    d = await res.json();
+  } catch (e) { throw new Error("Impossible de joindre la base Open Food Facts. Prends plutôt l'étiquette en photo."); }
+  if (!d || d.status !== 1 || !d.product) throw new Error("Produit introuvable dans Open Food Facts. Prends plutôt l'étiquette en photo.");
+  const p = d.product, n = p.nutriments || {}, g = k => Number(n[k + "_100g"]) || 0;
+  const isMl = /ml|cl|\bl\b/i.test(p.quantity || "");
+  showFoodForm({ name: p.product_name_fr || p.product_name || "Produit", brand: (p.brands || "").split(",")[0],
+    unit: isMl ? "ml" : "g", portion: Number(p.serving_quantity) || 100,
+    kcal: g("energy-kcal"), p: g("proteins"), c: g("carbohydrates"), sug: g("sugars"), f: g("fat"), sat: g("saturated-fat"), fib: g("fiber"), salt: g("salt") });
+}
+$("fCodeBtn").onclick = async () => {
+  $("fErr").textContent = "";
+  const btn = $("fCodeBtn"); btn.disabled = true; btn.textContent = "…";
+  try { await lookupBarcode($("fCode").value); $("fCode").value = ""; }
+  catch (er) { $("fErr").textContent = er.message; }
+  finally { btn.disabled = false; btn.textContent = "Chercher"; }
+};
+function renderFoods(){
+  const list = [...S.foods].sort((a,b) => a.name.localeCompare(b.name, "fr"));
+  $("fList").innerHTML = list.length ? list.map(f => `<div style="border-top:1px solid var(--line);padding:10px 0">
+      <div class="row between"><div><div class="name" style="font-weight:600">${esc(f.name)}</div>
+        <div class="muted">${esc(f.brand || "")}${f.brand ? " · " : ""}${fmt(f.kcal)} kcal / 100 ${f.unit} · P ${fmt(f.p,1)} · G ${fmt(f.c,1)} · L ${fmt(f.f,1)}</div></div>
+        <button class="danger" data-fdel="${f.id}" aria-label="Supprimer">✕</button></div>
+      <div class="row" style="margin-top:8px">
+        <input data-fq="${f.id}" type="number" inputmode="decimal" value="${f.portion}" style="flex:1;padding:8px">
+        <span class="muted">${f.unit}</span>
+        <button class="primary" data-fadd="${f.id}" style="width:auto;padding:9px 14px">Ajouter au jour</button>
+        <button class="ghost" data-fedit="${f.id}" style="padding:9px 12px">✎</button>
+      </div></div>`).join("")
+    : `<div class="muted">Aucun produit pour l'instant.</div>`;
+  if (list.length) $("fList").firstElementChild.style.borderTop = "0";
+  document.querySelectorAll("[data-fdel]").forEach(b => b.onclick = () => {
+    if (!confirmDelete(b)) return; S.foods = S.foods.filter(f => f.id !== b.dataset.fdel); save(); renderFoods(); });
+  document.querySelectorAll("[data-fedit]").forEach(b => b.onclick = () => showFoodForm(S.foods.find(f => f.id === b.dataset.fedit)));
+  document.querySelectorAll("[data-fadd]").forEach(b => b.onclick = () => {
+    const f = S.foods.find(x => x.id === b.dataset.fadd);
+    const q = parseFloat(String(document.querySelector(`[data-fq="${f.id}"]`).value).replace(",", ".")) || f.portion, k = q / 100, now = Date.now();
+    S.meals.push({ id: String(now), ts: now, day: today(), name: f.name,
+      items: [{name: f.name, quantity: q + " " + f.unit, kcal: f.kcal * k}],
+      kcal: Math.round(f.kcal*k), p: Math.round(f.p*k), c: Math.round(f.c*k), f: Math.round(f.f*k),
+      sug: f.sug*k, sat: f.sat*k, fib: f.fib*k, salt: f.salt*k });
+    save(); renderToday(); b.textContent = "Ajouté ✓"; setTimeout(() => b.textContent = "Ajouter au jour", 1500);
+  });
+}
 
 // ---------- Suivi ----------
 function lastDays(n){ const a = []; for (let i = n-1; i >= 0; i--) a.push(dayKey(Date.now() - i*864e5)); return a; }
@@ -469,7 +655,7 @@ function keyInfo(){
 }
 function fillSettings(){
   $("sK").value = S.goals.kcal; $("sP").value = S.goals.p; $("sC").value = S.goals.c; $("sF").value = S.goals.f; $("sW").value = S.goals.w;
-  $("sKey").value = S.apiKey; $("sModel").value = S.model; keyInfo();
+  $("sKey").value = S.apiKey; $("sModel").value = S.model; keyInfo(); renderSpend();
 }
 $("save").onclick = () => {
   S.goals = { kcal: r($("sK").value) || 3000, p: r($("sP").value) || 145, c: r($("sC").value) || 425, f: r($("sF").value) || 80, w: parseFloat(String($("sW").value).replace(",", ".")) || 3 };
@@ -477,6 +663,11 @@ $("save").onclick = () => {
   if (/\.\.\.|…/.test($("sKey").value) || (S.apiKey && S.apiKey.length < 60)) { $("save").textContent = "Clé incomplète : ce n'est qu'un aperçu"; setTimeout(() => $("save").textContent = "Enregistrer", 5000); return; }
   if (S.apiKey && !S.apiKey.startsWith("sk-ant-")) { $("save").textContent = "Clé enregistrée, mais elle devrait commencer par sk-ant-"; setTimeout(() => $("save").textContent = "Enregistrer", 4000); return; }
   $("save").textContent = "Enregistré ✓"; setTimeout(() => $("save").textContent = "Enregistrer", 1500);
+};
+$("sCreditBtn").onclick = () => {
+  const v = parseFloat(String($("sCredit").value).replace(",", ".")); if (!(v >= 0)) return;
+  S.credit = v; S.creditTs = Date.now(); save(); renderSpend();
+  $("sCreditBtn").textContent = "✓"; setTimeout(() => $("sCreditBtn").textContent = "Recaler", 1500);
 };
 $("exp").onclick = () => {
   const { apiKey, ...data } = S;
