@@ -77,7 +77,15 @@ svg text{fill:var(--muted);font-size:11px}
 
 <!-- ============ AUJOURD'HUI ============ -->
 <section id="v-today">
-  <h1 id="dayTitle">Aujourd'hui</h1>
+  <div class="row between" style="margin:4px 0 12px">
+    <button class="ghost" id="dPrev" style="padding:10px 14px" aria-label="Jour précédent">←</button>
+    <div style="text-align:center;flex:1">
+      <h1 id="dayTitle" style="margin:0;font-size:22px">Aujourd'hui</h1>
+      <button id="dToday" class="hidden" style="background:none;color:var(--accent);padding:2px;font-size:14px">Revenir à aujourd'hui</button>
+      <input id="dPick" type="date" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">
+    </div>
+    <button class="ghost" id="dNext" style="padding:10px 14px" aria-label="Jour suivant">→</button>
+  </div>
 
   <div class="card">
     <div class="row between">
@@ -252,15 +260,19 @@ svg text{fill:var(--muted);font-size:11px}
   </div>
   <button class="primary" id="save">Enregistrer</button>
   <div class="card" style="margin-top:14px">
-    <h2>Sauvegarde</h2>
-    <div class="muted">Tes données sont stockées sur ce téléphone. Exporte-les de temps en temps.</div>
+    <h2>Exporter mes données</h2>
+    <div class="muted">Des tableaux lisibles, qui s'ouvrent dans Numbers ou Excel.</div>
+    <button class="ghost" id="expDays" style="width:100%;margin-top:10px">📊 Résumé par jour</button>
+    <button class="ghost" id="expMeals" style="width:100%;margin-top:8px">🍽️ Tous mes repas</button>
+    <h2 style="margin-top:18px">Sauvegarde</h2>
+    <div class="muted">Tes données sont stockées uniquement sur ce téléphone. Ce fichier de sauvegarde n'est pas fait pour être lu : il sert à tout restaurer (sur un nouveau téléphone par exemple). Garde-le dans Fichiers ou iCloud.</div>
     <div class="row" style="margin-top:10px">
-      <button class="ghost" id="exp" style="flex:1">Exporter</button>
-      <label class="ghost" style="flex:1;margin:0;text-align:center;padding:13px;border-radius:12px;font-weight:600;color:var(--text);cursor:pointer">Importer
+      <button class="ghost" id="exp" style="flex:1">Sauvegarder</button>
+      <label class="ghost" style="flex:1;margin:0;text-align:center;padding:13px;border-radius:12px;font-weight:600;color:var(--text);cursor:pointer">Restaurer
         <input id="imp" type="file" accept="application/json" class="hidden"></label>
     </div>
   </div>
-  <div class="muted" style="text-align:center;margin-top:14px">Version 9</div>
+  <div class="muted" style="text-align:center;margin-top:14px">Version 10</div>
 </section>
 
 </main>
@@ -321,9 +333,23 @@ function label(o, refs){
     ${row("Protéines", o.p, "g", 0)}
     ${row("Sel", o.salt, "g", 1, R.salt)}</table>`;
 }
+let viewDay = today();
+const shiftDay = (k, n) => { const d = new Date(k + "T12:00"); d.setDate(d.getDate() + n); return dayKey(d); };
+$("dPrev").onclick = () => { viewDay = shiftDay(viewDay, -1); renderToday(); };
+$("dNext").onclick = () => { if (viewDay < today()) { viewDay = shiftDay(viewDay, 1); renderToday(); } };
+$("dToday").onclick = () => { viewDay = today(); renderToday(); };
+$("dayTitle").onclick = () => { $("dPick").max = today(); $("dPick").value = viewDay; try { $("dPick").showPicker(); } catch (e) { $("dPick").focus(); $("dPick").click(); } };
+$("dPick").onchange = () => { if ($("dPick").value && $("dPick").value <= today()) { viewDay = $("dPick").value; renderToday(); } };
+document.addEventListener("visibilitychange", () => { if (!document.hidden && viewDay > today()) { viewDay = today(); renderToday(); } });
 function renderToday(){
-  const t = totals(today()), g = S.goals;
-  $("dayTitle").textContent = new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}).replace(/^./, c => c.toUpperCase());
+  const isToday = viewDay === today();
+  const t = totals(viewDay), g = S.goals;
+  const dl = new Date(viewDay + "T12:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
+  $("dayTitle").textContent = (isToday ? "Aujourd'hui" : dl.replace(/^./, c => c.toUpperCase())) + " ▾";
+  $("dToday").classList.toggle("hidden", isToday);
+  $("dNext").disabled = isToday;
+  $("dayDetail").querySelector("summary").textContent = "Voir le détail nutritionnel " + (isToday ? "du jour" : "de ce jour") + " ▾";
+  document.querySelectorAll("#v-today h2").forEach(h => { if (/^Repas/.test(h.textContent)) h.textContent = isToday ? "Repas du jour" : "Repas de ce jour"; });
   $("kcalNow").textContent = r(t.kcal);
   $("kcalGoal").textContent = g.kcal;
   const left = g.kcal - r(t.kcal);
@@ -335,11 +361,11 @@ function renderToday(){
   const refs = { sat:{v:Math.round(g.kcal*0.1/9), max:1}, sug:{v:90, max:1}, fib:{v:30}, salt:{v:6, max:1} };
   $("dayLabel").innerHTML = label(t, refs) +
     `<div class="muted" style="margin-top:8px">Repères pour ${g.kcal} kcal : graisses saturées sous 10 % des calories, sucres sous 90 g, au moins 30 g de fibres, sel sous 6 g.${t.partial ? " Les repas ajoutés avant cette mise à jour n'ont pas ce détail." : ""}</div>`;
-  const wl = (S.water[today()] || 0) / 1000;
+  const wl = (S.water[viewDay] || 0) / 1000;
   $("wNow").textContent = wl.toLocaleString("fr-FR",{maximumFractionDigits:2});
   $("wGoal").textContent = S.goals.w.toLocaleString("fr-FR");
   $("wBar").style.width = Math.min(100, wl / S.goals.w * 100) + "%";
-  const list = S.meals.filter(m => m.day === today()).sort((a,b) => b.ts - a.ts);
+  const list = S.meals.filter(m => m.day === viewDay).sort((a,b) => b.ts - a.ts);
   $("entries").innerHTML = list.length ? list.map(m => `<div style="border-top:1px solid var(--line)"><div class="entry" style="border-top:0"><div>
       <div class="name">${esc(m.name)}</div>
       <div class="muted">${new Date(m.ts).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} · P ${r(m.p)} · G ${r(m.c)} · L ${r(m.f)}</div></div>
@@ -354,7 +380,7 @@ function renderToday(){
 }
 document.querySelectorAll("[data-water]").forEach(b => b.onclick = () => addWater(+b.dataset.water));
 $("wUndo").onclick = () => addWater(-250);
-function addWater(ml){ const k = today(); S.water[k] = Math.max(0, (S.water[k] || 0) + ml); save(); renderToday(); }
+function addWater(ml){ const k = viewDay; S.water[k] = Math.max(0, (S.water[k] || 0) + ml); save(); renderToday(); }
 function confirmDelete(b){ // double tap pour supprimer, sans boîte de dialogue
   if (b.dataset.armed) return true;
   b.dataset.armed = 1; b.textContent = "Suppr. ?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "✕"; }, 2500);
@@ -485,7 +511,8 @@ function resetInput(){
 $("cancel").onclick = resetInput;
 $("confirm").onclick = () => {
   const now = Date.now();
-  S.meals.push({ id: String(now), ts: now, day: today(), name: pending.name, items: pending.items,
+  const ts = viewDay === today() ? now : new Date(viewDay + "T12:00").getTime();
+  S.meals.push({ id: String(now), ts, day: viewDay, name: pending.name, items: pending.items,
     kcal: r($("eK").value), p: r($("eP").value), c: r($("eC").value), f: r($("eF").value),
     sug: pending.sug, sat: pending.sat, fib: pending.fib, salt: pending.salt });
   save(); resetInput(); renderToday(); window.scrollTo({top:0, behavior:"smooth"});
@@ -669,11 +696,29 @@ $("sCreditBtn").onclick = () => {
   S.credit = v; S.creditTs = Date.now(); save(); renderSpend();
   $("sCreditBtn").textContent = "✓"; setTimeout(() => $("sCreditBtn").textContent = "Recaler", 1500);
 };
-$("exp").onclick = () => {
-  const { apiKey, ...data } = S;
+function download(name, text, type){
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], {type:"application/json"}));
-  a.download = "calories-" + today() + ".json"; a.click();
+  a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click();
+}
+$("exp").onclick = () => { const { apiKey, ...data } = S; download("sauvegarde-calories-" + today() + ".json", JSON.stringify(data, null, 1), "application/json"); };
+// CSV au format français : séparateur ";" et virgule décimale, avec BOM pour les accents
+const cnum = (v, d = 0) => v === undefined || v === null || v === "" ? "" : Number(v).toFixed(d).replace(".", ",");
+const ccell = v => /[;"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+const csv = rows => "\uFEFF" + rows.map(r => r.map(ccell).join(";")).join("\r\n");
+const frDate = k => new Date(k + "T12:00").toLocaleDateString("fr-FR");
+$("expMeals").onclick = () => {
+  const rows = [["Date","Heure","Repas","Aliments","Calories (kcal)","Protéines (g)","Glucides (g)","dont sucres (g)","Lipides (g)","dont saturés (g)","Fibres (g)","Sel (g)"]];
+  [...S.meals].sort((a,b) => a.ts - b.ts).forEach(m => rows.push([frDate(m.day), new Date(m.ts).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}), m.name,
+    (m.items || []).map(i => `${i.name} (${i.quantity})`).join(", "), cnum(m.kcal), cnum(m.p), cnum(m.c), cnum(m.sug,1), cnum(m.f), cnum(m.sat,1), cnum(m.fib,1), cnum(m.salt,1)]));
+  download("repas-" + today() + ".csv", csv(rows), "text/csv");
+};
+$("expDays").onclick = () => {
+  const days = [...new Set([...S.meals.map(m => m.day), ...Object.keys(S.water), ...S.weights.map(w => w.day)])].sort();
+  const rows = [["Date","Calories (kcal)","Objectif (kcal)","Protéines (g)","Glucides (g)","dont sucres (g)","Lipides (g)","dont saturés (g)","Fibres (g)","Sel (g)","Eau (L)","Poids (kg)","Nb repas"]];
+  days.forEach(d => { const t = totals(d), w = S.weights.find(x => x.day === d), n = S.meals.filter(m => m.day === d).length;
+    rows.push([frDate(d), cnum(t.kcal), S.goals.kcal, cnum(t.p), cnum(t.c), cnum(t.sug,1), cnum(t.f), cnum(t.sat,1), cnum(t.fib,1), cnum(t.salt,1),
+      cnum((S.water[d] || 0) / 1000, 2), w ? cnum(w.kg, 1) : "", n]); });
+  download("resume-par-jour-" + today() + ".csv", csv(rows), "text/csv");
 };
 $("imp").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
