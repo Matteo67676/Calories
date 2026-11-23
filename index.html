@@ -318,12 +318,14 @@ $("analyze").onclick = async () => {
     const body = { model:S.model, max_tokens:4000, system:SYSTEM,
       output_config:{ effort:"low", format:{type:"json_schema", schema:SCHEMA} },
       messages:[{role:"user", content}] };
-    const headers = { "content-type":"application/json", "x-api-key":S.apiKey,
+    // Clés personnelles (sk-ant-usr-...) : en-tête Authorization: Bearer. Anciennes clés (sk-ant-api...) : x-api-key.
+    const auth = S.apiKey.startsWith("sk-ant-api") ? {"x-api-key":S.apiKey} : {"authorization":"Bearer " + S.apiKey};
+    const headers = { "content-type":"application/json", ...auth,
       "anthropic-version":"2026-10-21", "anthropic-dangerous-direct-browser-access":"true" };
     if (S.model.startsWith("claude-opus")) { body.fallbacks = "default"; headers["anthropic-beta"] = "server-side-fallback-2026-07-01"; }
     const res = await fetch("https://api.anthropic.com/v1/messages", {method:"POST", headers, body:JSON.stringify(body)});
     const data = await res.json();
-    if (!res.ok) throw new Error(res.status === 401 ? "Clé API refusée par Anthropic. Recopie-la en entier dans Réglages (elle commence par sk-ant-api). Détail : " + ((data.error && data.error.message) || "401") :
+    if (!res.ok) throw new Error(res.status === 401 ? "Clé API refusée par Anthropic. Vérifie qu'elle est complète et pas expirée dans Réglages. Détail : " + ((data.error && data.error.message) || "401") :
       /credit|billing/i.test((data.error && data.error.message) || "") ? "Plus de crédit sur ton compte Anthropic. Ajoute du crédit dans Billing sur console.anthropic.com." :
       res.status === 429 ? "Trop de demandes, réessaie dans une minute." :
       (data.error && data.error.message) || ("Erreur " + res.status));
