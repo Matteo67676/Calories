@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calories">
+<meta name="theme-color" content="#111418">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Calories</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --text:#14171c; --muted:#6b7280; --line:#e5e7eb;
+  --accent:#2563eb; --kcal:#ef6c00; --prot:#2563eb; --carb:#16a34a; --fat:#a855f7;
+  --danger:#dc2626; --ok:#16a34a;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0f1115; --card:#1a1d23; --text:#f2f3f5; --muted:#9aa3ae; --line:#2a2f37;
+    --accent:#60a5fa; --kcal:#fb923c; --prot:#60a5fa; --carb:#4ade80; --fat:#c084fc; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+main{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 90px)}
+h1{font-size:28px;margin:4px 0 12px}
+h2{font-size:17px;margin:0 0 10px}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;border:1px solid var(--line)}
+.muted{color:var(--muted);font-size:14px}
+.big{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:10px;align-items:center}
+.between{justify-content:space-between}
+.bar{height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin:6px 0 12px}
+.bar>i{display:block;height:100%;border-radius:6px}
+.macro{flex:1}
+.macro b{font-variant-numeric:tabular-nums}
+textarea,input,select{width:100%;font:inherit;color:var(--text);background:var(--bg);
+  border:1px solid var(--line);border-radius:12px;padding:12px}
+textarea{min-height:70px;resize:vertical}
+button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:13px 16px;cursor:pointer}
+.primary{background:var(--accent);color:#fff;width:100%}
+.ghost{background:var(--bg);color:var(--text);border:1px solid var(--line)}
+.danger{background:transparent;color:var(--danger);padding:6px 8px}
+button:disabled{opacity:.5}
+.photoBtn{flex:0 0 auto;font-size:22px;padding:12px 16px}
+#preview{max-width:100%;border-radius:12px;margin-top:10px;display:none}
+.entry{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.entry:first-child{border-top:0}
+.entry .name{font-weight:600}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);
+  padding:6px 8px calc(env(safe-area-inset-bottom) + 6px)}
+.tabs button{flex:1;background:none;color:var(--muted);font-size:13px;padding:8px 4px}
+.tabs button.on{color:var(--accent)}
+.tabs span{display:block;font-size:20px}
+.hidden{display:none!important}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:14px;color:var(--muted);margin:10px 0 4px}
+.edit input{padding:8px;text-align:center}
+.alert{border-left:4px solid var(--kcal)}
+.err{color:var(--danger);font-size:14px;margin-top:8px}
+svg text{fill:var(--muted);font-size:11px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:s 1s linear infinite;vertical-align:-3px;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<main>
+
+<!-- ============ AUJOURD'HUI ============ -->
+<section id="v-today">
+  <h1 id="dayTitle">Aujourd'hui</h1>
+
+  <div class="card">
+    <div class="row between">
+      <div>
+        <div class="muted">Calories</div>
+        <div class="big"><span id="kcalNow">0</span> <span class="muted">/ <span id="kcalGoal">3000</span></span></div>
+      </div>
+      <div style="text-align:right">
+        <div class="muted">Reste</div>
+        <div style="font-size:22px;font-weight:700" id="kcalLeft">3000</div>
+      </div>
+    </div>
+    <div class="bar"><i id="kcalBar" style="background:var(--kcal);width:0"></i></div>
+    <div class="row" id="macros"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ajouter un repas</h2>
+    <div class="row">
+      <textarea id="desc" placeholder="Ex : 200 g de riz, 1 blanc de poulet, une banane. Le micro du clavier marche pour dicter."></textarea>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="ghost photoBtn" style="margin:0;border-radius:12px;cursor:pointer" title="Photo">📷
+        <input id="photo" type="file" accept="image/*" class="hidden">
+      </label>
+      <button class="primary" id="analyze">Analyser</button>
+    </div>
+    <img id="preview" alt="">
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="card hidden" id="result">
+    <h2 id="resName">Résultat</h2>
+    <div class="muted" id="resItems"></div>
+    <div class="grid2 edit" style="grid-template-columns:repeat(4,1fr);margin-top:10px">
+      <div><label>kcal</label><input id="eK" inputmode="numeric"></div>
+      <div><label>Prot. g</label><input id="eP" inputmode="numeric"></div>
+      <div><label>Gluc. g</label><input id="eC" inputmode="numeric"></div>
+      <div><label>Lip. g</label><input id="eF" inputmode="numeric"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="ghost" id="cancel" style="flex:1">Annuler</button>
+      <button class="primary" id="confirm" style="flex:2">Ajouter</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Repas du jour</h2>
+    <div id="entries"></div>
+  </div>
+</section>
+
+<!-- ============ SUIVI ============ -->
+<section id="v-stats" class="hidden">
+  <h1>Suivi</h1>
+  <div class="card alert hidden" id="bulkAlert"></div>
+  <div class="card">
+    <h2>Calories, 7 derniers jours</h2>
+    <svg id="weekChart" viewBox="0 0 320 170" width="100%"></svg>
+    <div class="muted" id="weekAvg"></div>
+  </div>
+  <div class="card">
+    <h2>Protéines, 7 derniers jours</h2>
+    <svg id="protChart" viewBox="0 0 320 170" width="100%"></svg>
+  </div>
+  <div class="card">
+    <h2>Poids</h2>
+    <div class="row">
+      <input id="wIn" type="number" step="0.1" inputmode="decimal" placeholder="Poids du jour (kg)">
+      <button class="primary" id="wAdd" style="width:auto">OK</button>
+    </div>
+    <svg id="wChart" viewBox="0 0 320 170" width="100%" style="margin-top:10px"></svg>
+    <div class="muted" id="wInfo"></div>
+  </div>
+</section>
+
+<!-- ============ RÉGLAGES ============ -->
+<section id="v-settings" class="hidden">
+  <h1>Réglages</h1>
+  <div class="card">
+    <h2>Objectifs par jour</h2>
+    <div class="grid2">
+      <div><label>Calories (kcal)</label><input id="sK" type="number"></div>
+      <div><label>Protéines (g)</label><input id="sP" type="number"></div>
+      <div><label>Glucides (g)</label><input id="sC" type="number"></div>
+      <div><label>Lipides (g)</label><input id="sF" type="number"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Intelligence artificielle</h2>
+    <label>Clé API Anthropic</label>
+    <input id="sKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+    <label>Modèle</label>
+    <select id="sModel">
+      <option value="claude-opus-5-5">Claude Opus 5.5 (le plus précis, ~2 à 3 €/mois)</option>
+      <option value="claude-haiku-5-5">Claude Haiku 5.5 (le moins cher, ~0,10 €/mois)</option>
+    </select>
+    <div class="muted" style="margin-top:8px">La clé reste uniquement sur ton téléphone.</div>
+  </div>
+  <button class="primary" id="save">Enregistrer</button>
+  <div class="card" style="margin-top:14px">
+    <h2>Sauvegarde</h2>
+    <div class="muted">Tes données sont stockées sur ce téléphone. Exporte-les de temps en temps.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="exp" style="flex:1">Exporter</button>
+      <label class="ghost" style="flex:1;margin:0;text-align:center;padding:13px;border-radius:12px;font-weight:600;color:var(--text);cursor:pointer">Importer
+        <input id="imp" type="file" accept="application/json" class="hidden"></label>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<nav class="tabs">
+  <button data-v="today" class="on"><span>🍽️</span>Aujourd'hui</button>
+  <button data-v="stats"><span>📈</span>Suivi</button>
+  <button data-v="settings"><span>⚙️</span>Réglages</button>
+</nav>
+
+<script>
+// ---------- Stockage ----------
+const DEF = { goals:{kcal:3000,p:145,c:425,f:80}, apiKey:"", model:"claude-opus-5-5", meals:[], weights:[] };
+function load(){ try{ return Object.assign({}, DEF, JSON.parse(localStorage.getItem("ct") || "{}")); }catch(e){ return {...DEF}; } }
+let S = load();
+function save(){ try{ localStorage.setItem("ct", JSON.stringify(S)); }catch(e){ alertMsg("Impossible d'enregistrer sur ce téléphone."); } }
+const $ = id => document.getElementById(id);
+const dayKey = d => { const x = new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); };
+const today = () => dayKey(Date.now());
+const r = n => Math.round(Number(n) || 0);
+function alertMsg(m){ $("err").textContent = m; }
+
+// ---------- Navigation ----------
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  ["today","stats","settings"].forEach(v => $("v-"+v).classList.toggle("hidden", v !== b.dataset.v));
+  if (b.dataset.v === "stats") renderStats();
+  if (b.dataset.v === "settings") fillSettings();
+  window.scrollTo(0,0);
+});
+
+// ---------- Aujourd'hui ----------
+function totals(key){
+  return S.meals.filter(m => m.day === key).reduce((a,m) => ({kcal:a.kcal+m.kcal,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f}), {kcal:0,p:0,c:0,f:0});
+}
+function renderToday(){
+  const t = totals(today()), g = S.goals;
+  $("dayTitle").textContent = new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}).replace(/^./, c => c.toUpperCase());
+  $("kcalNow").textContent = r(t.kcal);
+  $("kcalGoal").textContent = g.kcal;
+  const left = g.kcal - r(t.kcal);
+  $("kcalLeft").textContent = left >= 0 ? left : "+" + (-left);
+  $("kcalBar").style.width = Math.min(100, t.kcal / g.kcal * 100) + "%";
+  const mk = (lbl, v, goal, col) => `<div class="macro"><div class="muted">${lbl}</div><b>${r(v)}</b><span class="muted"> / ${goal} g</span>
+    <div class="bar" style="margin-bottom:0"><i style="background:${col};width:${Math.min(100, v/goal*100)}%"></i></div></div>`;
+  $("macros").innerHTML = mk("Protéines", t.p, g.p, "var(--prot)") + mk("Glucides", t.c, g.c, "var(--carb)") + mk("Lipides", t.f, g.f, "var(--fat)");
+  const list = S.meals.filter(m => m.day === today()).sort((a,b) => b.ts - a.ts);
+  $("entries").innerHTML = list.length ? list.map(m => `<div class="entry"><div>
+      <div class="name">${esc(m.name)}</div>
+      <div class="muted">${new Date(m.ts).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} · P ${r(m.p)} · G ${r(m.c)} · L ${r(m.f)}</div></div>
+      <div class="row"><b>${r(m.kcal)} kcal</b><button class="danger" data-del="${m.id}" aria-label="Supprimer">✕</button></div></div>`).join("")
+    : `<div class="muted">Rien pour l'instant. Ajoute ton premier repas au-dessus.</div>`;
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    if (!confirmDelete(b)) return;
+    S.meals = S.meals.filter(m => m.id !== b.dataset.del); save(); renderToday();
+  });
+}
+function confirmDelete(b){ // double tap pour supprimer, sans boîte de dialogue
+  if (b.dataset.armed) return true;
+  b.dataset.armed = 1; b.textContent = "Suppr. ?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "✕"; }, 2500);
+  return false;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+// ---------- Photo ----------
+let photoB64 = null;
+$("photo").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  photoB64 = await shrink(f, 1024);
+  $("preview").src = "data:image/jpeg;base64," + photoB64; $("preview").style.display = "block";
+};
+function shrink(file, max){
+  return new Promise((ok, ko) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = img.width*s; c.height = img.height*s;
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      ok(c.toDataURL("image/jpeg", 0.8).split(",")[1]);
+    };
+    img.onerror = ko; img.src = URL.createObjectURL(file);
+  });
+}
+
+// ---------- Analyse IA ----------
+const SCHEMA = { type:"object", additionalProperties:false, required:["meal_name","items"],
+  properties:{
+    meal_name:{type:"string"},
+    items:{type:"array", items:{type:"object", additionalProperties:false,
+      required:["name","quantity","kcal","protein_g","carbs_g","fat_g"],
+      properties:{name:{type:"string"},quantity:{type:"string"},kcal:{type:"number"},
+        protein_g:{type:"number"},carbs_g:{type:"number"},fat_g:{type:"number"}}}}
+  }};
+const SYSTEM = "Tu es un nutritionniste. À partir d'une photo et/ou d'une description d'un repas, identifie chaque aliment, " +
+  "estime une quantité réaliste (portion française typique si rien n'est précisé) et ses valeurs nutritionnelles " +
+  "(kcal, protéines, glucides, lipides en grammes). Si la photo montre un emballage avec une étiquette nutritionnelle, utilise-la. " +
+  "Réponds en français. meal_name est un nom court du repas (ex : \"Poulet riz brocolis\").";
+
+let pending = null;
+$("analyze").onclick = async () => {
+  alertMsg("");
+  const text = $("desc").value.trim();
+  if (!text && !photoB64) return alertMsg("Écris ce que tu as mangé ou prends une photo.");
+  if (!S.apiKey) return alertMsg("Ajoute ta clé API dans Réglages pour activer l'analyse.");
+  const btn = $("analyze"); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Analyse…';
+  try {
+    const content = [];
+    if (photoB64) content.push({type:"image", source:{type:"base64", media_type:"image/jpeg", data:photoB64}});
+    content.push({type:"text", text: text || "Estime les valeurs nutritionnelles de ce repas."});
+    const body = { model:S.model, max_tokens:4000, system:SYSTEM,
+      output_config:{ effort:"low", format:{type:"json_schema", schema:SCHEMA} },
+      messages:[{role:"user", content}] };
+    const headers = { "content-type":"application/json", "x-api-key":S.apiKey,
+      "anthropic-version":"2026-10-21", "anthropic-dangerous-direct-browser-access":"true" };
+    if (S.model.startsWith("claude-opus")) { body.fallbacks = "default"; headers["anthropic-beta"] = "server-side-fallback-2026-07-01"; }
+    const res = await fetch("https://api.anthropic.com/v1/messages", {method:"POST", headers, body:JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(res.status === 401 ? "Clé API invalide. Vérifie-la dans Réglages." :
+      res.status === 429 ? "Trop de demandes, réessaie dans une minute." :
+      (data.error && data.error.message) || ("Erreur " + res.status));
+    if (data.stop_reason === "refusal") throw new Error("L'IA n'a pas pu analyser ce repas. Essaie avec une description.");
+    const txt = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    const out = JSON.parse(txt);
+    const sum = k => out.items.reduce((a,i) => a + (Number(i[k]) || 0), 0);
+    pending = { name: out.meal_name || "Repas", items: out.items,
+      kcal: sum("kcal"), p: sum("protein_g"), c: sum("carbs_g"), f: sum("fat_g") };
+    showResult();
+  } catch (e) {
+    alertMsg(e.message === "Failed to fetch" ? "Pas de connexion internet." : e.message);
+  } finally { btn.disabled = false; btn.textContent = "Analyser"; }
+};
+function showResult(){
+  $("result").classList.remove("hidden");
+  $("resName").textContent = pending.name;
+  $("resItems").innerHTML = pending.items.map(i => `${esc(i.name)} (${esc(i.quantity)}) : ${r(i.kcal)} kcal`).join("<br>");
+  $("eK").value = r(pending.kcal); $("eP").value = r(pending.p); $("eC").value = r(pending.c); $("eF").value = r(pending.f);
+  $("result").scrollIntoView({behavior:"smooth", block:"center"});
+}
+function resetInput(){
+  pending = null; photoB64 = null; $("desc").value = ""; $("photo").value = "";
+  $("preview").style.display = "none"; $("result").classList.add("hidden");
+}
+$("cancel").onclick = resetInput;
+$("confirm").onclick = () => {
+  const now = Date.now();
+  S.meals.push({ id: String(now), ts: now, day: today(), name: pending.name, items: pending.items,
+    kcal: r($("eK").value), p: r($("eP").value), c: r($("eC").value), f: r($("eF").value) });
+  save(); resetInput(); renderToday(); window.scrollTo({top:0, behavior:"smooth"});
+};
+
+// ---------- Suivi ----------
+function lastDays(n){ const a = []; for (let i = n-1; i >= 0; i--) a.push(dayKey(Date.now() - i*864e5)); return a; }
+function barChart(svg, days, vals, goal, color, unit){
+  const W = 320, H = 170, pad = 22, top = 10, max = Math.max(goal*1.2, ...vals, 1);
+  const bw = (W - pad) / days.length;
+  const y = v => top + (H - top - pad) * (1 - v/max);
+  let h = `<line x1="${pad}" x2="${W}" y1="${y(goal)}" y2="${y(goal)}" stroke="currentColor" stroke-dasharray="4 4" opacity=".45" style="color:var(--muted)"/>
+    <text x="0" y="${y(goal)+4}">${goal >= 1000 ? (goal/1000).toFixed(1)+"k" : goal}</text>`;
+  days.forEach((d,i) => {
+    const v = vals[i], x = pad + i*bw + bw*0.18, w = bw*0.64, hh = (H - top - pad) * v/max;
+    h += `<rect x="${x}" y="${y(v)}" width="${w}" height="${Math.max(hh,0)}" rx="4" fill="${color}" opacity="${v >= goal*0.95 ? 1 : .55}"><title>${r(v)} ${unit}</title></rect>`;
+    h += `<text x="${x + w/2}" y="${H-6}" text-anchor="middle">${new Date(d+"T12:00").toLocaleDateString("fr-FR",{weekday:"short"}).slice(0,3)}</text>`;
+  });
+  svg.innerHTML = h;
+}
+function renderStats(){
+  const days = lastDays(7), t = days.map(totals);
+  barChart($("weekChart"), days, t.map(x => x.kcal), S.goals.kcal, "var(--kcal)", "kcal");
+  barChart($("protChart"), days, t.map(x => x.p), S.goals.p, "var(--prot)", "g");
+  const logged = t.filter(x => x.kcal > 0);
+  const avg = logged.length ? r(logged.reduce((a,x) => a + x.kcal, 0) / logged.length) : 0;
+  $("weekAvg").textContent = logged.length ? `Moyenne sur ${logged.length} jour(s) suivi(s) : ${avg} kcal (objectif ${S.goals.kcal}).` : "Pas encore de données cette semaine.";
+  // Poids
+  const w = [...S.weights].sort((a,b) => a.day < b.day ? -1 : 1).slice(-30);
+  const svg = $("wChart");
+  if (w.length < 2) { svg.innerHTML = `<text x="160" y="85" text-anchor="middle">Entre ton poids 2 fois ou plus pour voir la courbe</text>`; }
+  else {
+    const vs = w.map(x => x.kg), mn = Math.min(...vs) - 0.5, mx = Math.max(...vs) + 0.5;
+    const X = i => 30 + i * (285 / (w.length - 1)), Y = v => 10 + 135 * (1 - (v - mn) / (mx - mn));
+    svg.innerHTML = `<text x="0" y="${Y(mx)+12}">${mx.toFixed(1)}</text><text x="0" y="${Y(mn)}">${mn.toFixed(1)}</text>
+      <polyline fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" points="${w.map((x,i) => X(i)+","+Y(x.kg)).join(" ")}"/>
+      ${w.map((x,i) => `<circle cx="${X(i)}" cy="${Y(x.kg)}" r="3.5" fill="var(--accent)"><title>${x.kg} kg</title></circle>`).join("")}
+      <text x="30" y="165">${fmtD(w[0].day)}</text><text x="315" y="165" text-anchor="end">${fmtD(w[w.length-1].day)}</text>`;
+  }
+  $("wInfo").textContent = w.length ? `Dernier poids : ${w[w.length-1].kg} kg (${fmtD(w[w.length-1].day)})` : "";
+  // Alerte prise de masse : poids qui ne monte pas sur 14 jours
+  const al = $("bulkAlert"); al.classList.add("hidden");
+  const recent = S.weights.filter(x => x.day >= dayKey(Date.now() - 14*864e5)).sort((a,b) => a.day < b.day ? -1 : 1);
+  if (recent.length >= 4) {
+    const span = (new Date(recent[recent.length-1].day) - new Date(recent[0].day)) / 864e5;
+    const half = Math.floor(recent.length/2), m = a => a.reduce((s,x) => s + x.kg, 0) / a.length;
+    const gainWeek = (m(recent.slice(half)) - m(recent.slice(0,half))) / Math.max(span/2, 1) * 7;
+    if (span >= 10 && gainWeek < 0.1) {
+      al.innerHTML = `<b>Ton poids ne monte pas.</b><div class="muted">Sur 2 semaines, tu prends environ ${gainWeek.toFixed(2)} kg par semaine. Pour ta prise de masse, monte ton objectif à ${S.goals.kcal + 200} kcal dans Réglages.</div>`;
+      al.classList.remove("hidden");
+    } else if (span >= 10 && gainWeek > 0.6) {
+      al.innerHTML = `<b>Tu prends du poids un peu vite.</b><div class="muted">Environ ${gainWeek.toFixed(2)} kg par semaine. Tu peux baisser à ${S.goals.kcal - 150} kcal pour limiter le gras.</div>`;
+      al.classList.remove("hidden");
+    }
+  }
+}
+const fmtD = d => new Date(d+"T12:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"});
+$("wAdd").onclick = () => {
+  const kg = parseFloat(String($("wIn").value).replace(",", "."));
+  if (!(kg > 30 && kg < 250)) return;
+  S.weights = S.weights.filter(x => x.day !== today()); S.weights.push({day: today(), kg}); save();
+  $("wIn").value = ""; renderStats();
+};
+
+// ---------- Réglages ----------
+function fillSettings(){
+  $("sK").value = S.goals.kcal; $("sP").value = S.goals.p; $("sC").value = S.goals.c; $("sF").value = S.goals.f;
+  $("sKey").value = S.apiKey; $("sModel").value = S.model;
+}
+$("save").onclick = () => {
+  S.goals = { kcal: r($("sK").value) || 3000, p: r($("sP").value) || 145, c: r($("sC").value) || 425, f: r($("sF").value) || 80 };
+  S.apiKey = $("sKey").value.trim(); S.model = $("sModel").value; save(); renderToday();
+  $("save").textContent = "Enregistré ✓"; setTimeout(() => $("save").textContent = "Enregistrer", 1500);
+};
+$("exp").onclick = () => {
+  const { apiKey, ...data } = S;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], {type:"application/json"}));
+  a.download = "calories-" + today() + ".json"; a.click();
+};
+$("imp").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const d = JSON.parse(await f.text()); S = Object.assign({}, S, d, {apiKey: S.apiKey}); save(); renderToday(); fillSettings(); }
+  catch (er) { /* fichier invalide */ }
+};
+
+renderToday();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
