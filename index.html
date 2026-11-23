@@ -47,6 +47,7 @@ button:disabled{opacity:.5}
 #preview{max-width:100%;border-radius:12px;margin-top:10px;display:none}
 .entry{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
 .entry:first-child{border-top:0}
+#entries>div:first-child{border-top:0!important}
 .entry .name{font-weight:600}
 .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);
   padding:6px 8px calc(env(safe-area-inset-bottom) + 6px)}
@@ -58,6 +59,13 @@ button:disabled{opacity:.5}
 label{display:block;font-size:14px;color:var(--muted);margin:10px 0 4px}
 .edit input{padding:8px;text-align:center}
 .alert{border-left:4px solid var(--kcal)}
+details summary{cursor:pointer;color:var(--accent);font-size:14px;font-weight:600;list-style:none;padding:6px 0}
+details summary::-webkit-details-marker{display:none}
+.lbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px;font-variant-numeric:tabular-nums}
+.lbl td{padding:6px 0;border-top:1px solid var(--line)}
+.lbl td:not(:first-child){text-align:right}
+.lbl .sub td:first-child{padding-left:14px;color:var(--muted)}
+.lbl .warn{color:var(--kcal);font-weight:600}
 .err{color:var(--danger);font-size:14px;margin-top:8px}
 svg text{fill:var(--muted);font-size:11px}
 .spin{display:inline-block;width:16px;height:16px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:s 1s linear infinite;vertical-align:-3px;margin-right:6px}
@@ -84,6 +92,7 @@ svg text{fill:var(--muted);font-size:11px}
     </div>
     <div class="bar"><i id="kcalBar" style="background:var(--kcal);width:0"></i></div>
     <div class="row" id="macros"></div>
+    <details id="dayDetail" style="margin-top:10px"><summary>Voir le détail nutritionnel du jour ▾</summary><div id="dayLabel"></div></details>
   </div>
 
   <div class="card">
@@ -118,6 +127,7 @@ svg text{fill:var(--muted);font-size:11px}
   <div class="card hidden" id="result">
     <h2 id="resName">Résultat</h2>
     <div class="muted" id="resItems"></div>
+    <details><summary>Détail nutritionnel ▾</summary><div id="resLabel"></div></details>
     <div class="grid2 edit" style="grid-template-columns:repeat(4,1fr);margin-top:10px">
       <div><label>kcal</label><input id="eK" inputmode="numeric"></div>
       <div><label>Prot. g</label><input id="eP" inputmode="numeric"></div>
@@ -199,7 +209,7 @@ svg text{fill:var(--muted);font-size:11px}
         <input id="imp" type="file" accept="application/json" class="hidden"></label>
     </div>
   </div>
-  <div class="muted" style="text-align:center;margin-top:14px">Version 6</div>
+  <div class="muted" style="text-align:center;margin-top:14px">Version 7</div>
 </section>
 
 </main>
@@ -233,7 +243,30 @@ document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
 
 // ---------- Aujourd'hui ----------
 function totals(key){
-  return S.meals.filter(m => m.day === key).reduce((a,m) => ({kcal:a.kcal+m.kcal,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f}), {kcal:0,p:0,c:0,f:0});
+  const ks = ["kcal","p","c","f","sug","sat","fib","salt"], z = Object.fromEntries(ks.map(k => [k,0]));
+  const ms = S.meals.filter(m => m.day === key);
+  z.partial = ms.some(m => m.fib === undefined);
+  ms.forEach(m => ks.forEach(k => z[k] += Number(m[k]) || 0));
+  return z;
+}
+const fmt = (v, d = 0) => v === undefined ? "—" : Number(v).toLocaleString("fr-FR",{maximumFractionDigits:d, minimumFractionDigits:d});
+function label(o, refs){
+  const row = (name, v, unit, d, ref, sub) => {
+    let cls = "", refTxt = "";
+    if (refs && ref) { refTxt = (ref.max ? "max " : "min ") + fmt(ref.v, ref.d || 0) + " " + unit;
+      if (v !== undefined && (ref.max ? v > ref.v : false)) cls = "warn"; }
+    return `<tr class="${sub ? "sub" : ""}"><td>${name}</td><td class="${cls}">${fmt(v, d)} ${unit}</td>${refs ? `<td class="muted">${refTxt}</td>` : ""}</tr>`;
+  };
+  const R = refs || {};
+  return `<table class="lbl">${refs ? `<tr><td class="muted">Total</td><td class="muted">Mangé</td><td class="muted">Repère</td></tr>` : ""}
+    ${row("Énergie", o.kcal, "kcal", 0)}
+    ${row("Matières grasses", o.f, "g", 0)}
+    ${row("dont saturées", o.sat, "g", 1, R.sat, 1)}
+    ${row("Glucides", o.c, "g", 0)}
+    ${row("dont sucres", o.sug, "g", 1, R.sug, 1)}
+    ${row("Fibres", o.fib, "g", 1, R.fib)}
+    ${row("Protéines", o.p, "g", 0)}
+    ${row("Sel", o.salt, "g", 1, R.salt)}</table>`;
 }
 function renderToday(){
   const t = totals(today()), g = S.goals;
@@ -246,15 +279,20 @@ function renderToday(){
   const mk = (lbl, v, goal, col) => `<div class="macro"><div class="muted">${lbl}</div><b>${r(v)}</b><span class="muted"> / ${goal} g</span>
     <div class="bar" style="margin-bottom:0"><i style="background:${col};width:${Math.min(100, v/goal*100)}%"></i></div></div>`;
   $("macros").innerHTML = mk("Protéines", t.p, g.p, "var(--prot)") + mk("Glucides", t.c, g.c, "var(--carb)") + mk("Lipides", t.f, g.f, "var(--fat)");
+  const refs = { sat:{v:Math.round(g.kcal*0.1/9), max:1}, sug:{v:90, max:1}, fib:{v:30}, salt:{v:6, max:1} };
+  $("dayLabel").innerHTML = label(t, refs) +
+    `<div class="muted" style="margin-top:8px">Repères pour ${g.kcal} kcal : graisses saturées sous 10 % des calories, sucres sous 90 g, au moins 30 g de fibres, sel sous 6 g.${t.partial ? " Les repas ajoutés avant cette mise à jour n'ont pas ce détail." : ""}</div>`;
   const wl = (S.water[today()] || 0) / 1000;
   $("wNow").textContent = wl.toLocaleString("fr-FR",{maximumFractionDigits:2});
   $("wGoal").textContent = S.goals.w.toLocaleString("fr-FR");
   $("wBar").style.width = Math.min(100, wl / S.goals.w * 100) + "%";
   const list = S.meals.filter(m => m.day === today()).sort((a,b) => b.ts - a.ts);
-  $("entries").innerHTML = list.length ? list.map(m => `<div class="entry"><div>
+  $("entries").innerHTML = list.length ? list.map(m => `<div style="border-top:1px solid var(--line)"><div class="entry" style="border-top:0"><div>
       <div class="name">${esc(m.name)}</div>
       <div class="muted">${new Date(m.ts).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} · P ${r(m.p)} · G ${r(m.c)} · L ${r(m.f)}</div></div>
-      <div class="row"><b>${r(m.kcal)} kcal</b><button class="danger" data-del="${m.id}" aria-label="Supprimer">✕</button></div></div>`).join("")
+      <div class="row"><b>${r(m.kcal)} kcal</b><button class="danger" data-del="${m.id}" aria-label="Supprimer">✕</button></div></div>
+      <details style="margin:-6px 0 6px"><summary>Détail ▾</summary>${label(m)}
+        ${(m.items || []).length ? `<div class="muted" style="margin-top:6px">${m.items.map(i => `${esc(i.name)} (${esc(i.quantity)}) : ${r(i.kcal)} kcal`).join("<br>")}</div>` : ""}</details></div>`).join("")
     : `<div class="muted">Rien pour l'instant. Ajoute ton premier repas au-dessus.</div>`;
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     if (!confirmDelete(b)) return;
@@ -296,13 +334,14 @@ const SCHEMA = { type:"object", additionalProperties:false, required:["meal_name
   properties:{
     meal_name:{type:"string"},
     items:{type:"array", items:{type:"object", additionalProperties:false,
-      required:["name","quantity","kcal","protein_g","carbs_g","fat_g"],
+      required:["name","quantity","kcal","protein_g","carbs_g","fat_g","sugars_g","saturated_fat_g","fiber_g","salt_g"],
       properties:{name:{type:"string"},quantity:{type:"string"},kcal:{type:"number"},
-        protein_g:{type:"number"},carbs_g:{type:"number"},fat_g:{type:"number"}}}}
+        protein_g:{type:"number"},carbs_g:{type:"number"},fat_g:{type:"number"},
+        sugars_g:{type:"number"},saturated_fat_g:{type:"number"},fiber_g:{type:"number"},salt_g:{type:"number"}}}}
   }};
 const SYSTEM = "Tu es un nutritionniste. À partir d'une photo et/ou d'une description d'un repas, identifie chaque aliment, " +
   "estime une quantité réaliste (portion française typique si rien n'est précisé) et ses valeurs nutritionnelles " +
-  "(kcal, protéines, glucides, lipides en grammes). Si la photo montre un emballage avec une étiquette nutritionnelle, utilise-la. " +
+  "(kcal, protéines, glucides dont sucres, lipides dont acides gras saturés, fibres et sel, en grammes). Si la photo montre un emballage avec une étiquette nutritionnelle, utilise-la. " +
   "Réponds en français. meal_name est un nom court du repas (ex : \"Poulet riz brocolis\").";
 
 let pending = null;
@@ -335,7 +374,8 @@ $("analyze").onclick = async () => {
     const out = JSON.parse(txt);
     const sum = k => out.items.reduce((a,i) => a + (Number(i[k]) || 0), 0);
     pending = { name: out.meal_name || "Repas", items: out.items,
-      kcal: sum("kcal"), p: sum("protein_g"), c: sum("carbs_g"), f: sum("fat_g") };
+      kcal: sum("kcal"), p: sum("protein_g"), c: sum("carbs_g"), f: sum("fat_g"),
+      sug: sum("sugars_g"), sat: sum("saturated_fat_g"), fib: sum("fiber_g"), salt: sum("salt_g") };
     showResult();
   } catch (e) {
     alertMsg(e.message === "Failed to fetch" ? "Pas de connexion internet." : e.message);
@@ -345,6 +385,7 @@ function showResult(){
   $("result").classList.remove("hidden");
   $("resName").textContent = pending.name;
   $("resItems").innerHTML = pending.items.map(i => `${esc(i.name)} (${esc(i.quantity)}) : ${r(i.kcal)} kcal`).join("<br>");
+  $("resLabel").innerHTML = label(pending);
   $("eK").value = r(pending.kcal); $("eP").value = r(pending.p); $("eC").value = r(pending.c); $("eF").value = r(pending.f);
   $("result").scrollIntoView({behavior:"smooth", block:"center"});
 }
@@ -356,7 +397,8 @@ $("cancel").onclick = resetInput;
 $("confirm").onclick = () => {
   const now = Date.now();
   S.meals.push({ id: String(now), ts: now, day: today(), name: pending.name, items: pending.items,
-    kcal: r($("eK").value), p: r($("eP").value), c: r($("eC").value), f: r($("eF").value) });
+    kcal: r($("eK").value), p: r($("eP").value), c: r($("eC").value), f: r($("eF").value),
+    sug: pending.sug, sat: pending.sat, fib: pending.fib, salt: pending.salt });
   save(); resetInput(); renderToday(); window.scrollTo({top:0, behavior:"smooth"});
 };
 
