@@ -199,6 +199,7 @@ svg text{fill:var(--muted);font-size:11px}
         <input id="imp" type="file" accept="application/json" class="hidden"></label>
     </div>
   </div>
+  <div class="muted" style="text-align:center;margin-top:14px">Version 6</div>
 </section>
 
 </main>
@@ -431,6 +432,7 @@ function fillSettings(){
 $("save").onclick = () => {
   S.goals = { kcal: r($("sK").value) || 3000, p: r($("sP").value) || 145, c: r($("sC").value) || 425, f: r($("sF").value) || 80, w: parseFloat(String($("sW").value).replace(",", ".")) || 3 };
   S.apiKey = $("sKey").value.replace(/[^\x21-\x7E]/g, ""); keyInfo(); S.model = $("sModel").value; save(); renderToday();
+  if (/\.\.\.|…/.test($("sKey").value) || (S.apiKey && S.apiKey.length < 60)) { $("save").textContent = "Clé incomplète : ce n'est qu'un aperçu"; setTimeout(() => $("save").textContent = "Enregistrer", 5000); return; }
   if (S.apiKey && !S.apiKey.startsWith("sk-ant-")) { $("save").textContent = "Clé enregistrée, mais elle devrait commencer par sk-ant-"; setTimeout(() => $("save").textContent = "Enregistrer", 4000); return; }
   $("save").textContent = "Enregistré ✓"; setTimeout(() => $("save").textContent = "Enregistrer", 1500);
 };
