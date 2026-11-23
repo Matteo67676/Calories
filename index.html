@@ -180,7 +180,8 @@ svg text{fill:var(--muted);font-size:11px}
   <div class="card">
     <h2>Intelligence artificielle</h2>
     <label>Clé API Anthropic</label>
-    <input id="sKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+    <input id="sKey" type="text" name="cle-anthropic" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore placeholder="Colle ta clé ici (sk-ant-api...)">
+    <div class="muted" id="keyInfo" style="margin-top:6px"></div>
     <label>Modèle</label>
     <select id="sModel">
       <option value="claude-opus-5-5">Claude Opus 5.5 (le plus précis, ~2 à 3 €/mois)</option>
@@ -417,13 +418,17 @@ $("wAdd").onclick = () => {
 };
 
 // ---------- Réglages ----------
+function keyInfo(){
+  const k = S.apiKey;
+  $("keyInfo").textContent = k ? `Clé enregistrée : ${k.length} caractères, commence par ${k.slice(0,10)}…, finit par …${k.slice(-4)}.` : "Aucune clé enregistrée.";
+}
 function fillSettings(){
   $("sK").value = S.goals.kcal; $("sP").value = S.goals.p; $("sC").value = S.goals.c; $("sF").value = S.goals.f; $("sW").value = S.goals.w;
-  $("sKey").value = S.apiKey; $("sModel").value = S.model;
+  $("sKey").value = S.apiKey; $("sModel").value = S.model; keyInfo();
 }
 $("save").onclick = () => {
   S.goals = { kcal: r($("sK").value) || 3000, p: r($("sP").value) || 145, c: r($("sC").value) || 425, f: r($("sF").value) || 80, w: parseFloat(String($("sW").value).replace(",", ".")) || 3 };
-  S.apiKey = $("sKey").value.replace(/[^\x21-\x7E]/g, ""); S.model = $("sModel").value; save(); renderToday();
+  S.apiKey = $("sKey").value.replace(/[^\x21-\x7E]/g, ""); keyInfo(); S.model = $("sModel").value; save(); renderToday();
   if (S.apiKey && !S.apiKey.startsWith("sk-ant-")) { $("save").textContent = "Clé enregistrée, mais elle devrait commencer par sk-ant-"; setTimeout(() => $("save").textContent = "Enregistrer", 4000); return; }
   $("save").textContent = "Enregistré ✓"; setTimeout(() => $("save").textContent = "Enregistrer", 1500);
 };
