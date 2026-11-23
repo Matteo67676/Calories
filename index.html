@@ -14,11 +14,11 @@
 :root{
   --bg:#f5f6f8; --card:#ffffff; --text:#14171c; --muted:#6b7280; --line:#e5e7eb;
   --accent:#2563eb; --kcal:#ef6c00; --prot:#2563eb; --carb:#16a34a; --fat:#a855f7;
-  --danger:#dc2626; --ok:#16a34a;
+  --danger:#dc2626; --water:#0891b2; --ok:#16a34a;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#0f1115; --card:#1a1d23; --text:#f2f3f5; --muted:#9aa3ae; --line:#2a2f37;
-    --accent:#60a5fa; --kcal:#fb923c; --prot:#60a5fa; --carb:#4ade80; --fat:#c084fc; }
+    --water:#22d3ee; --accent:#60a5fa; --kcal:#fb923c; --prot:#60a5fa; --carb:#4ade80; --fat:#c084fc; }
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--text);
@@ -87,6 +87,20 @@ svg text{fill:var(--muted);font-size:11px}
   </div>
 
   <div class="card">
+    <div class="row between">
+      <div><div class="muted">Eau</div>
+        <div style="font-size:22px;font-weight:700"><span id="wNow">0</span> <span class="muted" style="font-size:16px">/ <span id="wGoal">3</span> L</span></div></div>
+      <button class="ghost" id="wUndo" style="padding:8px 12px" aria-label="Retirer 250 ml">−</button>
+    </div>
+    <div class="bar"><i id="wBar" style="background:var(--water);width:0"></i></div>
+    <div class="row">
+      <button class="ghost" data-water="250" style="flex:1;white-space:nowrap;padding:12px 6px">+25 cl</button>
+      <button class="ghost" data-water="500" style="flex:1;white-space:nowrap;padding:12px 6px">+50 cl</button>
+      <button class="ghost" data-water="1000" style="flex:1;white-space:nowrap;padding:12px 6px">+1 L</button>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Ajouter un repas</h2>
     <div class="row">
       <textarea id="desc" placeholder="Ex : 200 g de riz, 1 blanc de poulet, une banane. Le micro du clavier marche pour dicter."></textarea>
@@ -136,6 +150,10 @@ svg text{fill:var(--muted);font-size:11px}
     <svg id="protChart" viewBox="0 0 320 170" width="100%"></svg>
   </div>
   <div class="card">
+    <h2>Eau, 7 derniers jours (L)</h2>
+    <svg id="waterChart" viewBox="0 0 320 170" width="100%"></svg>
+  </div>
+  <div class="card">
     <h2>Poids</h2>
     <div class="row">
       <input id="wIn" type="number" step="0.1" inputmode="decimal" placeholder="Poids du jour (kg)">
@@ -156,6 +174,7 @@ svg text{fill:var(--muted);font-size:11px}
       <div><label>Protéines (g)</label><input id="sP" type="number"></div>
       <div><label>Glucides (g)</label><input id="sC" type="number"></div>
       <div><label>Lipides (g)</label><input id="sF" type="number"></div>
+      <div><label>Eau (L)</label><input id="sW" type="number" step="0.1" inputmode="decimal"></div>
     </div>
   </div>
   <div class="card">
@@ -191,9 +210,9 @@ svg text{fill:var(--muted);font-size:11px}
 
 <script>
 // ---------- Stockage ----------
-const DEF = { goals:{kcal:3000,p:145,c:425,f:80}, apiKey:"", model:"claude-opus-5-5", meals:[], weights:[] };
+const DEF = { goals:{kcal:3000,p:145,c:425,f:80,w:3}, apiKey:"", model:"claude-opus-5-5", meals:[], weights:[], water:{} };
 function load(){ try{ return Object.assign({}, DEF, JSON.parse(localStorage.getItem("ct") || "{}")); }catch(e){ return {...DEF}; } }
-let S = load();
+let S = load(); S.water = S.water || {}; if (!S.goals.w) S.goals.w = 3;
 function save(){ try{ localStorage.setItem("ct", JSON.stringify(S)); }catch(e){ alertMsg("Impossible d'enregistrer sur ce téléphone."); } }
 const $ = id => document.getElementById(id);
 const dayKey = d => { const x = new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); };
@@ -225,6 +244,10 @@ function renderToday(){
   const mk = (lbl, v, goal, col) => `<div class="macro"><div class="muted">${lbl}</div><b>${r(v)}</b><span class="muted"> / ${goal} g</span>
     <div class="bar" style="margin-bottom:0"><i style="background:${col};width:${Math.min(100, v/goal*100)}%"></i></div></div>`;
   $("macros").innerHTML = mk("Protéines", t.p, g.p, "var(--prot)") + mk("Glucides", t.c, g.c, "var(--carb)") + mk("Lipides", t.f, g.f, "var(--fat)");
+  const wl = (S.water[today()] || 0) / 1000;
+  $("wNow").textContent = wl.toLocaleString("fr-FR",{maximumFractionDigits:2});
+  $("wGoal").textContent = S.goals.w.toLocaleString("fr-FR");
+  $("wBar").style.width = Math.min(100, wl / S.goals.w * 100) + "%";
   const list = S.meals.filter(m => m.day === today()).sort((a,b) => b.ts - a.ts);
   $("entries").innerHTML = list.length ? list.map(m => `<div class="entry"><div>
       <div class="name">${esc(m.name)}</div>
@@ -236,6 +259,9 @@ function renderToday(){
     S.meals = S.meals.filter(m => m.id !== b.dataset.del); save(); renderToday();
   });
 }
+document.querySelectorAll("[data-water]").forEach(b => b.onclick = () => addWater(+b.dataset.water));
+$("wUndo").onclick = () => addWater(-250);
+function addWater(ml){ const k = today(); S.water[k] = Math.max(0, (S.water[k] || 0) + ml); save(); renderToday(); }
 function confirmDelete(b){ // double tap pour supprimer, sans boîte de dialogue
   if (b.dataset.armed) return true;
   b.dataset.armed = 1; b.textContent = "Suppr. ?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "✕"; }, 2500);
@@ -336,10 +362,10 @@ function barChart(svg, days, vals, goal, color, unit){
   const bw = (W - pad) / days.length;
   const y = v => top + (H - top - pad) * (1 - v/max);
   let h = `<line x1="${pad}" x2="${W}" y1="${y(goal)}" y2="${y(goal)}" stroke="currentColor" stroke-dasharray="4 4" opacity=".45" style="color:var(--muted)"/>
-    <text x="0" y="${y(goal)+4}">${goal >= 1000 ? (goal/1000).toFixed(1)+"k" : goal}</text>`;
+    <text x="0" y="${y(goal)+4}">${goal >= 1000 ? (goal/1000).toFixed(1)+"k" : String(goal).replace(".", ",")}</text>`;
   days.forEach((d,i) => {
     const v = vals[i], x = pad + i*bw + bw*0.18, w = bw*0.64, hh = (H - top - pad) * v/max;
-    h += `<rect x="${x}" y="${y(v)}" width="${w}" height="${Math.max(hh,0)}" rx="4" fill="${color}" opacity="${v >= goal*0.95 ? 1 : .55}"><title>${r(v)} ${unit}</title></rect>`;
+    h += `<rect x="${x}" y="${y(v)}" width="${w}" height="${Math.max(hh,0)}" rx="4" fill="${color}" opacity="${v >= goal*0.95 ? 1 : .55}"><title>${unit === "L" ? v.toFixed(2) : r(v)} ${unit}</title></rect>`;
     h += `<text x="${x + w/2}" y="${H-6}" text-anchor="middle">${new Date(d+"T12:00").toLocaleDateString("fr-FR",{weekday:"short"}).slice(0,3)}</text>`;
   });
   svg.innerHTML = h;
@@ -348,6 +374,7 @@ function renderStats(){
   const days = lastDays(7), t = days.map(totals);
   barChart($("weekChart"), days, t.map(x => x.kcal), S.goals.kcal, "var(--kcal)", "kcal");
   barChart($("protChart"), days, t.map(x => x.p), S.goals.p, "var(--prot)", "g");
+  barChart($("waterChart"), days, days.map(d => (S.water[d] || 0) / 1000), S.goals.w, "var(--water)", "L");
   const logged = t.filter(x => x.kcal > 0);
   const avg = logged.length ? r(logged.reduce((a,x) => a + x.kcal, 0) / logged.length) : 0;
   $("weekAvg").textContent = logged.length ? `Moyenne sur ${logged.length} jour(s) suivi(s) : ${avg} kcal (objectif ${S.goals.kcal}).` : "Pas encore de données cette semaine.";
@@ -390,11 +417,11 @@ $("wAdd").onclick = () => {
 
 // ---------- Réglages ----------
 function fillSettings(){
-  $("sK").value = S.goals.kcal; $("sP").value = S.goals.p; $("sC").value = S.goals.c; $("sF").value = S.goals.f;
+  $("sK").value = S.goals.kcal; $("sP").value = S.goals.p; $("sC").value = S.goals.c; $("sF").value = S.goals.f; $("sW").value = S.goals.w;
   $("sKey").value = S.apiKey; $("sModel").value = S.model;
 }
 $("save").onclick = () => {
-  S.goals = { kcal: r($("sK").value) || 3000, p: r($("sP").value) || 145, c: r($("sC").value) || 425, f: r($("sF").value) || 80 };
+  S.goals = { kcal: r($("sK").value) || 3000, p: r($("sP").value) || 145, c: r($("sC").value) || 425, f: r($("sF").value) || 80, w: parseFloat(String($("sW").value).replace(",", ".")) || 3 };
   S.apiKey = $("sKey").value.trim(); S.model = $("sModel").value; save(); renderToday();
   $("save").textContent = "Enregistré ✓"; setTimeout(() => $("save").textContent = "Enregistrer", 1500);
 };
